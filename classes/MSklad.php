@@ -5,7 +5,7 @@ class MSklad
     const password = "60552fad43";
     const salePriceId = 0;
     const baseUrl = "https://online.moysklad.ru/api/remap/1.1";
-
+    private static $cached = [];
     public static function request($url, $isPost = false, $params = [])
     {
         try {
@@ -15,6 +15,9 @@ class MSklad
                 } else {
                     $url .= "?" . http_build_query($params);
                 }
+            }
+            if(isset(self::$cached[$url])) {
+                return self::$cached[$url];
             }
             $curl = curl_init($url);
             curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
@@ -28,26 +31,50 @@ class MSklad
             $output = curl_exec($curl);
             curl_close($curl);
             $res = json_decode($output, true);
-            return $res;
+            self::$cached[$url] = $res;
+            return self::$cached[$url];
         } catch (Exception $e) {
             return [];
         }
 
     }
-
 }
+
 class MSkladComponents extends MSklad {
     const componentsUrl = MSklad::baseUrl . "/entity/bundle";
+    const productsUrl = MSklad::baseUrl . "/entity/product";
+    const variantsUrl = MSklad::baseUrl . "/entity/variant";
+
+    public static function findOffer($id) {
+        $data = simplexml_load_file($_SERVER['DOCUMENT_ROOT'].'/upload/1c_catalog/offers.xml');
+        $nodes = $data->xpath("//КоммерческаяИнформация/ПакетПредложений/Предложения/Предложение/Ид[contains(.,'{$id}')]/parent::*");
+        if(count($nodes) && isset($nodes[0])) {
+            return (array)$nodes[0];
+        }
+        return false;
+    }
     public static function getComponents() {
         $products = self::getAllProductsWithComponents();
         $result = [];
         foreach ($products as $product) {
             foreach ($product['components']['rows'] as $row) {
                 $q = $row['quantity'];
+                $type = $row['assortment']['meta']['type'];
                 $href = $row['assortment']['meta']['href'];
                 $productArr = self::request($href);
+
+                if($type == "variant") {
+                    $father = self::findOffer($productArr['externalCode']);
+                    if($father) {
+                        $externalCode = $father['Ид'];
+                    } else {
+                        continue;
+                    }
+                } else {
+                    $externalCode = $productArr['externalCode'];
+                }
                 $price = $productArr['salePrices'][self::salePriceId]['value'] / 100;
-                $externalCode = $productArr['externalCode'];
+
                 if(!isset($result[$product['externalCode']])) {
                     $result[$product['externalCode']] = [];
                 }
@@ -62,6 +89,7 @@ class MSkladComponents extends MSklad {
         $href = self::componentsUrl;
         $params = ['expand' => 'components', "offset" => 0, "limit"=>100];
         do {
+
             $res = MSklad::request($href, false, $params);
             foreach ($res['rows'] as $row) {
                 if(isset($row['components'])) {
@@ -69,7 +97,8 @@ class MSkladComponents extends MSklad {
                 }
             }
             $params = [];
-        } while($href = $res['meta']['nextHref']);
+            $href = isset($res['meta']['nextHref']) ? $res['meta']['nextHref'] : false;
+        } while($href);
         return $products;
     }
 }
