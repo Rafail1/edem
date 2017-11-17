@@ -72,10 +72,17 @@ class MSkladAssortment extends MSklad {
         return self::getAllPages(self::url, ['offset' => 0, 'limit'=>100]);
     }
 }
+
+class MSkladComponents extends MSklad {
+    const url = MSklad::baseUrl . '/entity/bundle';
+    public static function getAll() {
+        return self::getAllPages(self::url, ['expand' => 'components', 'offset' => 0, 'limit'=>100]);
+    }
+}
 class MSkladProducts extends MSklad {
     const url = MSklad::baseUrl . '/entity/product';
     public static function getAll() {
-        return self::getAllPages(self::url, ['expand' => 'components', 'offset' => 0, 'limit'=>100]);
+        return self::getAllPages(self::url, [ 'offset' => 0, 'limit'=>100]);
     }
 }
 class MSkladOffers extends MSklad {
@@ -91,14 +98,14 @@ if(!$pid) {
     $stores = MSkladByStore::getAll();
     file_put_contents("{$root}/stores.txt", json_encode($stores));
 
-    $assortment = MSkladAssortment::getAll();
-    file_put_contents("{$root}/assortment.txt", json_encode($assortment));
-
     $offers = MSkladOffers::getAll();
     file_put_contents("{$root}/offers.txt", json_encode($offers));
 
     $prods = MSkladProducts::getAll();
     file_put_contents("{$root}/prods.txt", json_encode($prods));
+
+    $components = MSkladComponents::getAll();
+    file_put_contents("{$root}/components.txt", json_encode($prods));
 }
 
 
